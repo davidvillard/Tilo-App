@@ -149,7 +149,8 @@ function supabaseBackend(): Backend {
         jobs: jobs.data ?? [],
         shifts: shifts.data ?? [],
         expenses: expenses.data ?? [],
-        giftIdeas: [], // las separa la app (splitGiftIdeas)
+        giftIdeas: [], // las separa la app (prepareData)
+        incomes: [],
         plans: Object.fromEntries((plans.data ?? []).map((p) => [String(p.month).slice(0, 7), p])),
         recurring: recurring.data ?? [],
         wishes: (wishes.data ?? []).map((w) => ({ ...w, price: w.price == null ? null : Number(w.price) })),

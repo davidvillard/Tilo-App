@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { backend, type ChangePayload } from './backend';
-import { expenseValue, recurringDue, splitGiftIdeas, todayIso } from './calc';
+import { expenseValue, prepareData, recurringDue, todayIso } from './calc';
 import { categoryName } from './categories';
 import { money, uuid } from './format';
 import type { Data, Expense, Household, Member, Person, Priority, Recurring, Session, Task, Wish } from './types';
@@ -55,7 +55,7 @@ async function syncRecurring(recurring: Recurring[], upTo: string) {
   if (!due.length) return false;
   await backend.insertIgnore('expenses', due.map(({ template: t, date }) => ({
     id: uuid(), date, category: t.category, note: t.note, person_id: t.person_id,
-    status: 'planned', planned: Number(t.amount), amount: null, recurring_id: t.id, recipient: null,
+    status: 'planned', planned: Number(t.amount), amount: null, recurring_id: t.id, recipient: null, kind: t.kind ?? 'expense',
   })), 'recurring_id,date');
   for (const t of new Set(due.map((x) => x.template))) {
     await backend.upsert('recurring_expenses', { ...t, last_month: `${upTo}-01` });
@@ -68,8 +68,8 @@ export function DataProvider({ session, household, children }: { session: Sessio
   const today = todayIso();
   const [ym, setYm] = useState(today.slice(0, 7));
   const [sheet, setSheet] = useState<SheetState | null>(null);
-  // Las ideas de regalo se separan aquí: así el resumen, los movimientos y los informes no las cuentan.
-  const query = useQuery({ queryKey: ['data', household.id], queryFn: () => backend.load(), select: splitGiftIdeas });
+  // Ingresos sueltos y regalos sin comprar se separan aquí: así lo que suma gastos no los cuenta.
+  const query = useQuery({ queryKey: ['data', household.id], queryFn: () => backend.load(), select: prepareData });
   const data = query.data;
 
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: ['data', household.id] }), [qc, household.id]);
@@ -120,7 +120,7 @@ export function DataProvider({ session, household, children }: { session: Sessio
       const d = dataRef.current;
       if (!d) return false;
       if (old.household_id && old.household_id === household.id) return true;
-      return [d.people, d.jobs, d.expenses, d.giftIdeas, d.recurring, d.wishes, d.tasks].some((list) => list.some((r) => r.id === old.id))
+      return [d.people, d.jobs, d.expenses, d.incomes, d.giftIdeas, d.recurring, d.wishes, d.tasks].some((list) => list.some((r) => r.id === old.id))
         || Boolean(old.job_id && d.jobs.some((j) => j.id === old.job_id));
     };
     const stop = backend.subscribe((p: ChangePayload) => {
@@ -168,7 +168,9 @@ function makeActions(ctx: AppContext) {
       const diff = value - Number(e.planned);
       // Un regalo comprado ya está decidido.
       return run(() => backend.upsert('expenses', { ...e, status: 'real', amount: value, ...(e.recipient ? { decided: true } : {}) }),
-        Math.abs(diff) < 0.005 ? 'Pagado justo lo previsto' : diff < 0 ? `Pagado: ${money(-diff)} menos de lo previsto` : `Pagado: ${money(diff)} más de lo previsto`);
+        e.kind === 'income'
+          ? (Math.abs(diff) < 0.005 ? 'Cobrado justo lo previsto' : diff < 0 ? `Cobrado: ${money(-diff)} menos de lo previsto` : `Cobrado: ${money(diff)} más de lo previsto`)
+          : Math.abs(diff) < 0.005 ? 'Pagado justo lo previsto' : diff < 0 ? `Pagado: ${money(-diff)} menos de lo previsto` : `Pagado: ${money(diff)} más de lo previsto`);
     },
     deleteExpense: async (e: Expense) => {
       const ok = await run(() => backend.remove('expenses', { id: e.id }));

@@ -119,12 +119,23 @@ export function christmasSeason(today: string) {
 }
 
 /** Un mes cuenta para el informe si se le apuntó algo: un gasto, un previsto o su propio presupuesto u objetivo. */
-export function monthHasData(data: Pick<Data, 'plans' | 'expenses'>, ym: string) {
-  return Boolean(data.plans[ym]) || data.expenses.some((e) => (e.date || '').startsWith(ym));
+export function monthHasData(data: Pick<Data, 'plans' | 'expenses' | 'incomes'>, ym: string) {
+  return Boolean(data.plans[ym]) || [...data.expenses, ...data.incomes].some((e) => (e.date || '').startsWith(ym));
+}
+
+/** Ingresos sueltos del mes (te pagan su parte, una venta…): cobrados y previstos. */
+export function monthExtraIncome(data: Pick<Data, 'incomes'>, ym: string) {
+  const list = data.incomes.filter((e) => (e.date || '').startsWith(ym));
+  let paid = 0, pending = 0;
+  for (const e of list) if (e.status === 'planned') pending += expenseValue(e); else paid += expenseValue(e);
+  return { paid, pending, total: paid + pending, list };
 }
 
 export function monthSummary(data: Data, ym: string) {
-  const income = monthIncome(data, ym);
+  const jobs = monthIncome(data, ym);
+  const extra = monthExtraIncome(data, ym);
+  // Lo que entra: trabajos (con lo estimado) más ingresos sueltos (cobrados y previstos).
+  const income = { ...jobs, total: jobs.total + extra.total, extra };
   const spending = monthSpending(data, ym);
   const plan = monthPlan(data, ym);
   const goal = n(plan.savings_goal);
@@ -173,6 +184,17 @@ export const monthlyApprox = (rate: unknown, hours: unknown) => (n(rate) * n(hou
  */
 export const isGiftIdea = (e: Pick<Expense, 'recipient' | 'status'>) =>
   Boolean(e.recipient) && e.status === 'planned';
+
+export const isIncome = (e: Pick<Expense, 'kind'>) => e.kind === 'income';
+
+/** Separa los ingresos sueltos de los gastos: así todo lo que suma gastos no los cuenta. */
+export function splitIncomes(data: Data): Data {
+  const all = [...data.expenses, ...data.incomes];
+  return { ...data, expenses: all.filter((e) => !isIncome(e)), incomes: all.filter(isIncome) };
+}
+
+/** Lo que usa la app: ingresos y regalos sin comprar, cada uno en su lista. */
+export const prepareData = (data: Data) => splitGiftIdeas(splitIncomes(data));
 
 /**
  * Separa los regalos sin comprar del resto de gastos. Solo se ven en Navidad; todo lo demás

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   christmasSeason, monthHasData, monthIncome, monthPlan, monthSummary, monthsWithData,
-  monthSpending, plannedVsPaid, recurringDue, splitGiftIdeas, toNumber, weekStart,
+  monthSpending, plannedVsPaid, prepareData, recurringDue, splitGiftIdeas, toNumber, weekStart,
 } from './calc';
 import type { Data, Expense, Job } from './types';
 
@@ -12,7 +12,7 @@ const expense = (e: Partial<Expense>): Expense => ({
   id: Math.random().toString(36), date: '2026-11-01', category: 'otros', note: '', person_id: null,
   status: 'real', planned: null, amount: null, recurring_id: null, recipient: null, ...e,
 });
-const data = (d: Partial<Data>): Data => ({ people: [], jobs: [], shifts: [], expenses: [], plans: {}, recurring: [], wishes: [], members: [], giftIdeas: [], tasks: [], ...d });
+const data = (d: Partial<Data>): Data => ({ people: [], jobs: [], shifts: [], expenses: [], plans: {}, recurring: [], wishes: [], members: [], giftIdeas: [], tasks: [], incomes: [], ...d });
 
 test('Navidad: visible del 1 de noviembre al 6 de enero, con los regalos de esa campaña', () => {
   expect(christmasSeason('2026-10-31').visible).toBe(false);
@@ -102,4 +102,20 @@ test('Regalos: ni las ideas ni lo decidido cuentan en el resumen; solo lo compra
   expect(monthSpending(d, '2026-11')).toMatchObject({ paid: 20, pending: 10 });
   // Volver a separar no cambia nada (los datos llegan ya separados al recargar).
   expect(splitGiftIdeas(d)).toEqual(d);
+});
+
+test('Ingresos sueltos: suman a lo que entra (cobrados y previstos) y no cuentan como gasto', () => {
+  const d = prepareData(data({ expenses: [
+    expense({ id: 'spotify', kind: 'income', category: 'reembolso', status: 'real', amount: 3.5 }),
+    expense({ id: 'venta', kind: 'income', category: 'venta', status: 'planned', planned: 40 }),
+    expense({ id: 'gasto', status: 'real', amount: 10 }),
+  ] }));
+  expect(d.incomes.map((e) => e.id)).toEqual(['spotify', 'venta']);
+  expect(d.expenses.map((e) => e.id)).toEqual(['gasto']);
+  const m = monthSummary(d, '2026-11');
+  expect(m.income.extra).toMatchObject({ paid: 3.5, pending: 40 });
+  expect(m.income.total).toBe(43.5);
+  expect(m.spending.paid).toBe(10);
+  expect(m.left).toBe(33.5);
+  expect(prepareData(d)).toEqual(d);
 });

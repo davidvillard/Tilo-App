@@ -47,6 +47,8 @@ export function exampleData(): Data {
     add(`${ym}-21`, 'ocio', rnd(20, 60), 'Concierto', null);
     add(`${ym}-14`, 'restaurantes', rnd(30, 55), 'Cena fuera', 'p-alex');
     add(`${ym}-27`, 'restaurantes', rnd(18, 35), 'Vermú', 'p-sara');
+    add(`${ym}-05`, 'reembolso', 10.5, 'Spotify: la parte de los amigos', 'p-sara', { kind: 'income', recurring_id: 'r-spotify' });
+    add(`${ym}-02`, 'ocio', 17.99, 'Spotify familiar', 'p-sara');
     if (ym === months[2]) add(`${ym}-16`, 'supermercado', 140.35, 'Compra grande del mes', 'p-alex', { planned: 160 });
   }
   add(addDays(today, 2), 'supermercado', null, 'Compra grande', 'p-alex', { status: 'planned', planned: 160 });
@@ -66,6 +68,7 @@ export function exampleData(): Data {
   // Gastos fijos: ya apuntados hasta este mes; al pasar al siguiente se apuntan solos como previstos.
   const recurring = [
     { id: 'r-alquiler', person_id: 'p-alex', category: 'vivienda', note: 'Alquiler', amount: 750, day: 1, start_month: `${months[0]}-01`, last_month: `${current}-01` },
+    { id: 'r-spotify', person_id: 'p-sara', category: 'reembolso', note: 'Spotify: la parte de los amigos', amount: 10.5, day: 5, start_month: `${months[0]}-01`, last_month: `${current}-01`, kind: 'income' as const },
     { id: 'r-fibra', person_id: 'p-sara', category: 'facturas', note: 'Fibra y móvil', amount: 35, day: 8, start_month: `${months[0]}-01`, last_month: `${current}-01` },
   ];
 
@@ -82,5 +85,5 @@ export function exampleData(): Data {
     { id: 't-4', title: 'Devolver el taladro a la vecina', note: '', person_id: 'p-sara', due: null, priority: 2, done_at: `${addDays(today, -3)}T18:00:00Z` },
   ];
   const members = [{ user_id: 'demo', is_admin: true }, { user_id: 'demo-alex', is_admin: false }];
-  return { people, jobs, shifts, expenses, giftIdeas: [], plans, recurring, wishes, members, tasks };
+  return { people, jobs, shifts, expenses, giftIdeas: [], incomes: [], plans, recurring, wishes, members, tasks };
 }

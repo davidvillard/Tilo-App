@@ -9,20 +9,21 @@ import {
 } from '@/components/ui/drawer';
 import { CategoryIcon, Field, NativeSelect, Tag } from '@/components/bits';
 import { expenseValue, toNumber } from '@/lib/calc';
-import { CATEGORIES, category, categoryName } from '@/lib/categories';
+import { categoriesFor, category, categoryName } from '@/lib/categories';
 import { dayLong, decimal, money, monthName, parseLink, uuid } from '@/lib/format';
 import { useApp, type SheetState } from '@/lib/store';
-import type { Expense, Recurring } from '@/lib/types';
+import type { Expense, Kind, Recurring } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-/** Importe; si se pagó distinto de lo previsto, lo previsto va tachado delante. */
+/** Importe; si se pagó distinto de lo previsto, lo previsto va tachado delante. Un ingreso va en verde con «+». */
 export function ExpenseAmount({ e, className }: { e: Expense; className?: string }) {
   const planned = e.status === 'planned';
+  const income = e.kind === 'income';
   const changed = !planned && e.planned != null && Math.abs(Number(e.amount) - Number(e.planned)) > 0.004;
   return (
-    <span className={cn('font-semibold whitespace-nowrap', planned && 'text-planned', className)}>
+    <span className={cn('font-semibold whitespace-nowrap', planned ? 'text-planned' : income && 'text-income', className)}>
       {changed && <s className="mr-1.5 font-normal text-ink-3">{money(Number(e.planned))}</s>}
-      {money(expenseValue(e))}
+      {income && '+'}{money(expenseValue(e))}
     </span>
   );
 }
@@ -49,7 +50,7 @@ export function ExpenseRow({ e, showDate = false }: { e: Expense; showDate?: boo
       <div className="flex shrink-0 items-center">
         {planned && (
           <Button variant="outline" size="sm" onClick={() => openSheet({ mode: 'pay', expense: e })}>
-            <Wallet /> <span className="hidden sm:inline">Pagar</span>
+            <Wallet /> <span className="hidden sm:inline">{e.kind === 'income' ? 'Cobrar' : 'Pagar'}</span>
           </Button>
         )}
         <Button variant="ghost" size="icon" className="hidden sm:inline-flex" aria-label={`Editar ${e.note || 'gasto'}`} onClick={() => openSheet({ mode: 'edit', expense: e })}>
@@ -97,7 +98,7 @@ function PayForm({ expense: e }: { expense: Expense }) {
   return (
     <form onSubmit={save} className="flex flex-col">
       <DrawerHeader>
-        <DrawerTitle>¿Cuánto has pagado?</DrawerTitle>
+        <DrawerTitle>{e.kind === 'income' ? '¿Cuánto te han pagado?' : '¿Cuánto has pagado?'}</DrawerTitle>
         <DrawerDescription>{e.note || categoryName(e.category)} · previsto {money(Number(e.planned))}</DrawerDescription>
       </DrawerHeader>
       <div className="px-4">
@@ -105,7 +106,7 @@ function PayForm({ expense: e }: { expense: Expense }) {
       </div>
       <DrawerFooter className="flex-row justify-end">
         <Button type="button" variant="ghost" onClick={closeSheet}>Cancelar</Button>
-        <Button type="submit" variant="save" disabled={!(amount > 0)}>Guardar pago</Button>
+        <Button type="submit" variant="save" disabled={!(amount > 0)}>{e.kind === 'income' ? 'Guardar cobro' : 'Guardar pago'}</Button>
       </DrawerFooter>
     </form>
   );
@@ -135,8 +136,15 @@ function ExpenseForm({ sheet }: { sheet: Exclude<SheetState, { mode: 'pay' }> })
   const defaultDate = ym === today.slice(0, 7) ? today : `${ym}-01`;
   const lastPayer = readLastPayer();
 
+  const [kind, setKind] = useState<Kind>(ed?.kind ?? defaults.kind ?? 'expense');
   const [value, setValue] = useState(ed ? decimal(expenseValue(ed)) : decimal(defaults.planned ?? defaults.amount));
   const [cat, setCat] = useState(ed?.category ?? defaults.category ?? 'supermercado');
+  const income = kind === 'income';
+  const cats = categoriesFor(kind);
+  const changeKind = (k: Kind) => {
+    setKind(k);
+    if (!categoriesFor(k).some((c) => c.id === cat)) setCat(k === 'income' ? 'reembolso' : 'supermercado');
+  };
   const [date, setDate] = useState(ed?.date ?? defaults.date ?? defaultDate);
   const [who, setWho] = useState<string>(ed ? ed.person_id ?? '' : defaults.person_id ?? (lastPayer !== null && (lastPayer === '' || data.people.some((p) => p.id === lastPayer)) ? lastPayer : me?.id ?? ''));
   const [note, setNote] = useState(ed?.note ?? defaults.note ?? '');
@@ -146,7 +154,7 @@ function ExpenseForm({ sheet }: { sheet: Exclude<SheetState, { mode: 'pay' }> })
   const [repeat, setRepeat] = useState(false);
 
   const amount = toNumber(value);
-  const isGift = cat === 'regalos';
+  const isGift = !income && cat === 'regalos';
   const parsedLink = parseLink(link);
   const valid = amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date) && (!isGift || (recipient.trim() && parsedLink !== undefined));
 
@@ -155,7 +163,7 @@ function ExpenseForm({ sheet }: { sheet: Exclude<SheetState, { mode: 'pay' }> })
     if (!valid) return;
     writeLastPayer(who);
     const fields = {
-      date, category: cat, note: note.trim(), person_id: who || null,
+      date, category: cat, note: note.trim(), person_id: who || null, kind,
       status: planned ? 'planned' as const : 'real' as const,
       recipient: isGift ? recipient.trim() : null,
       link: isGift ? parsedLink ?? null : null,
@@ -165,7 +173,7 @@ function ExpenseForm({ sheet }: { sheet: Exclude<SheetState, { mode: 'pay' }> })
     closeSheet();
     if (ed) {
       // Al editar un gasto pagado se conserva lo previsto, para seguir viendo la diferencia.
-      await actions.saveExpense({ ...ed, ...fields, planned: planned ? amount : ed.planned ?? null, amount: planned ? null : amount }, 'Gasto actualizado');
+      await actions.saveExpense({ ...ed, ...fields, planned: planned ? amount : ed.planned ?? null, amount: planned ? null : amount }, income ? 'Ingreso actualizado' : 'Gasto actualizado');
       return;
     }
     const row: Expense = {
@@ -174,26 +182,39 @@ function ExpenseForm({ sheet }: { sheet: Exclude<SheetState, { mode: 'pay' }> })
     };
     if (repeat) {
       const month = `${date.slice(0, 7)}-01`;
-      const t: Recurring = { id: uuid(), person_id: row.person_id, category: cat, note: row.note, amount, day: Number(date.slice(8)), start_month: month, last_month: month };
+      const t: Recurring = { id: uuid(), person_id: row.person_id, category: cat, note: row.note, amount, day: Number(date.slice(8)), start_month: month, last_month: month, kind };
       await actions.addRecurring(t, { ...row, recurring_id: t.id });
     } else {
-      await actions.saveExpense(row, isGift ? `Regalo apuntado en ${monthName(date)}` : planned ? 'Gasto previsto añadido' : 'Gasto añadido');
+      await actions.saveExpense(row, isGift ? `Regalo apuntado en ${monthName(date)}`
+        : income ? (planned ? 'Ingreso previsto añadido' : 'Ingreso añadido')
+        : planned ? 'Gasto previsto añadido' : 'Gasto añadido');
     }
   };
 
   return (
     <form onSubmit={save} className="flex min-h-0 flex-col">
       <DrawerHeader className="pb-2">
-        <DrawerTitle>{ed ? 'Editar gasto' : isGift ? 'Nuevo regalo' : 'Nuevo gasto'}</DrawerTitle>
+        <DrawerTitle>{income ? (ed ? 'Editar ingreso' : 'Nuevo ingreso') : ed ? 'Editar gasto' : isGift ? 'Nuevo regalo' : 'Nuevo gasto'}</DrawerTitle>
         <DrawerDescription className="sr-only">Importe, categoría, fecha y quién paga</DrawerDescription>
       </DrawerHeader>
       <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-2">
+        <div className="grid grid-cols-2 rounded-lg bg-muted p-1" role="radiogroup" aria-label="Tipo">
+          {([['expense', 'Gasto'], ['income', 'Ingreso']] as const).map(([k, label]) => (
+            <button
+              key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => changeKind(k)}
+              className={cn('h-9 rounded-md text-sm font-semibold transition-colors',
+                kind === k ? (k === 'income' ? 'bg-income text-white' : 'bg-background text-foreground shadow-xs') : 'text-muted-foreground hover:text-foreground')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <AmountInput value={value} onChange={setValue} />
 
         <fieldset>
           <legend className="pb-2 text-sm font-medium text-muted-foreground">Categoría</legend>
           <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
-            {CATEGORIES.map((c) => {
+            {cats.map((c) => {
               const on = c.id === cat;
               return (
                 <button
@@ -218,7 +239,7 @@ function ExpenseForm({ sheet }: { sheet: Exclude<SheetState, { mode: 'pay' }> })
         {isGift && <LinkField value={link} onChange={setLink} invalid={parsedLink === undefined} />}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Fecha"><Input className="h-10" type="date" value={date} onChange={(ev) => setDate(ev.target.value)} required /></Field>
-          <Field label="Quién paga">
+          <Field label={income ? 'Quién lo recibe' : 'Quién paga'}>
             <NativeSelect value={who} onChange={(ev) => setWho(ev.target.value)}>
               <option value="">Común</option>
               {data.people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -226,11 +247,13 @@ function ExpenseForm({ sheet }: { sheet: Exclude<SheetState, { mode: 'pay' }> })
           </Field>
         </div>
         <Field label="Concepto">
-          <Input className="h-10" value={note} onChange={(ev) => setNote(ev.target.value)} placeholder={isGift ? 'Auriculares, un libro…' : 'Compra semanal, cine, luz…'} />
+          <Input className="h-10" value={note} onChange={(ev) => setNote(ev.target.value)} placeholder={income ? 'Spotify de Pablo, venta de la radio…' : isGift ? 'Auriculares, un libro…' : 'Compra semanal, cine, luz…'} />
         </Field>
 
         <div className="flex flex-col gap-2 pb-1">
-          <Toggle checked={planned} onChange={setPlanned} icon={CalendarClock} label="Aún no lo he pagado" hint="Cuenta como previsto hasta que lo pagues." />
+          <Toggle checked={planned} onChange={setPlanned} icon={CalendarClock}
+            label={income ? 'Aún no me lo han pagado' : 'Aún no lo he pagado'}
+            hint={income ? 'Cuenta como previsto hasta que lo cobres.' : 'Cuenta como previsto hasta que lo pagues.'} />
           {!ed && <Toggle checked={repeat} onChange={setRepeat} icon={Repeat} label="Se repite cada mes" hint="Se apuntará solo como previsto el mismo día de cada mes." />}
         </div>
       </div>

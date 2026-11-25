@@ -9,8 +9,8 @@ import { Progress } from '@/components/ui/progress';
 import { Card, CardTitle, CategoryIcon, MonthSwitcher, PageHeader, Tag } from '@/components/bits';
 import { ExpenseAmount } from '@/components/expenses';
 import type { Route } from '@/components/AppShell';
-import { monthSummary, n, toNumber } from '@/lib/calc';
-import { CATEGORIES, category } from '@/lib/categories';
+import { expenseValue, monthSummary, n, toNumber } from '@/lib/calc';
+import { CATEGORIES, category, categoryName } from '@/lib/categories';
 import { cap, dayShort, decimal, money, money0, monthLong, monthName } from '@/lib/format';
 import { useApp } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -110,6 +110,19 @@ export function Inicio({ go }: { go: (r: Route) => void }) {
                     </div>
                   );
                 })}
+                {income.extra.list.length > 0 && (
+                  <div className="flex items-start justify-between gap-3 border-b py-2.5 last:border-b-0">
+                    <div className="min-w-0">
+                      <p className="font-medium">Otros ingresos</p>
+                      {income.extra.list.map((e) => (
+                        <p key={e.id} className="truncate text-sm text-muted-foreground">
+                          {e.note || categoryName(e.category)} · {money(expenseValue(e))}{e.status === 'planned' ? ' (previsto)' : ''}
+                        </p>
+                      ))}
+                    </div>
+                    <span className="font-semibold text-income">+{money(income.extra.total)}</span>
+                  </div>
+                )}
                 {!income.rows.length && <p className="text-sm text-muted-foreground">Sin trabajos. <button className="font-semibold text-ring" onClick={() => go('hogar')}>Añadir uno</button></p>}
               </Card>
             </div>

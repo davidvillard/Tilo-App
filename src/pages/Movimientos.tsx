@@ -8,7 +8,7 @@ import { Card, CardTitle, CategoryIcon, EmptyState, MonthSwitcher, NativeSelect,
 import { ExpenseRow } from '@/components/expenses';
 import { useConfirm } from '@/components/confirm';
 import { expenseValue, toNumber } from '@/lib/calc';
-import { CATEGORIES, categoryName } from '@/lib/categories';
+import { CATEGORIES, INCOME_CATEGORIES, categoryName } from '@/lib/categories';
 import { cap, dayLong, decimal, money, monthName } from '@/lib/format';
 import { useApp } from '@/lib/store';
 import type { Recurring } from '@/lib/types';
@@ -22,9 +22,12 @@ export function Movimientos() {
   const [status, setStatus] = useState<Status>('all');
   const [cat, setCat] = useState('');
 
-  const month = useMemo(() => data.expenses.filter((e) => e.date.startsWith(ym)), [data.expenses, ym]);
-  const paid = month.filter((e) => e.status === 'real').reduce((s, e) => s + expenseValue(e), 0);
-  const pending = month.filter((e) => e.status === 'planned').reduce((s, e) => s + expenseValue(e), 0);
+  // Gastos e ingresos sueltos del mes en la misma lista; los totales de arriba van por separado.
+  const month = useMemo(() => [...data.expenses, ...data.incomes].filter((e) => e.date.startsWith(ym)), [data.expenses, data.incomes, ym]);
+  const spent = month.filter((e) => e.kind !== 'income');
+  const paid = spent.filter((e) => e.status === 'real').reduce((s, e) => s + expenseValue(e), 0);
+  const pending = spent.filter((e) => e.status === 'planned').reduce((s, e) => s + expenseValue(e), 0);
+  const earned = month.filter((e) => e.kind === 'income').reduce((s, e) => s + expenseValue(e), 0);
 
   const needle = q.trim().toLowerCase();
   const list = month
@@ -40,9 +43,10 @@ export function Movimientos() {
     <>
       <PageHeader title="Movimientos"><MonthSwitcher /></PageHeader>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
+      <div className={cn('mb-4 grid grid-cols-2 gap-3', earned > 0 ? 'sm:max-w-xl sm:grid-cols-3' : 'sm:max-w-md')}>
         <Stat label="Pagado" value={money(paid)} />
         <Stat label="Previsto" value={money(pending)} tone="text-planned" />
+        {earned > 0 && <Stat label="Ingresos sueltos" value={`+${money(earned)}`} tone="text-income" />}
       </div>
 
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -54,7 +58,8 @@ export function Movimientos() {
           <Segmented value={status} onChange={setStatus} options={[['all', 'Todos'], ['real', 'Pagados'], ['planned', 'Previstos']]} />
           <NativeSelect className="w-auto" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Categoría">
             <option value="">Categorías</option>
-            {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <optgroup label="Gastos">{CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
+            <optgroup label="Ingresos">{INCOME_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
           </NativeSelect>
         </div>
       </div>
@@ -124,7 +129,7 @@ function Fixed() {
             <span className="block truncate font-medium">{t.note || categoryName(t.category)}</span>
             <span className="block text-sm text-muted-foreground">{categoryName(t.category)} · {personName(t.person_id)} · día {t.day}</span>
           </span>
-          <span className="font-semibold">{money(Number(t.amount))}</span>
+          <span className={cn('font-semibold', t.kind === 'income' && 'text-income')}>{t.kind === 'income' ? '+' : ''}{money(Number(t.amount))}</span>
         </button>
       )) : <p className="text-sm text-muted-foreground">Todavía no hay ninguno.</p>}
       <RecurringSheet t={open} onClose={() => setOpen(null)} />
@@ -147,7 +152,7 @@ function RecurringSheet({ t, onClose }: { t: Recurring | null; onClose: () => vo
           <form onSubmit={async (e) => { e.preventDefault(); if (amount > 0 && await actions.saveRecurringAmount(r, amount)) onClose(); }}>
             <DrawerHeader>
               <DrawerTitle>{cap(r.note || categoryName(r.category))}</DrawerTitle>
-              <DrawerDescription>Gasto fijo, el día {r.day} de cada mes. El importe nuevo se aplica a los meses que aún no se han apuntado.</DrawerDescription>
+              <DrawerDescription>{r.kind === 'income' ? 'Ingreso fijo' : 'Gasto fijo'}, el día {r.day} de cada mes. El importe nuevo se aplica a los meses que aún no se han apuntado.</DrawerDescription>
             </DrawerHeader>
             <div className="px-4">
               <label className="text-sm font-medium text-muted-foreground">Importe

@@ -60,6 +60,8 @@ export interface Expense {
   /** importe pagado */
   amount: number | null;
   recurring_id: ID | null;
+  /** 'income' = ingreso suelto (te pagan su parte, una venta…); por defecto, gasto */
+  kind?: Kind;
   /** para quién es; con destinatario, el gasto es un regalo */
   recipient: string | null;
   /** enlace opcional (dónde comprar el regalo); solo http(s) */
@@ -86,12 +88,17 @@ export interface MonthPlan {
   household_id?: ID;
 }
 
+/** Gasto o ingreso. */
+export type Kind = 'expense' | 'income';
+
 export interface Recurring {
   id: ID;
   person_id: ID | null;
   category: string;
   note: string;
   amount: number;
+  /** ingreso fijo (por ejemplo, la parte de Spotify que te pagan cada mes) */
+  kind?: Kind;
   day: number;
   start_month: string;
   /** último mes ya apuntado, YYYY-MM-01 */
@@ -143,6 +150,8 @@ export interface Data {
   shifts: Shift[];
   /** gastos que cuentan: todo menos las ideas de regalo */
   expenses: Expense[];
+  /** ingresos sueltos (kind 'income'): suman a lo que entra en el mes, no a lo gastado */
+  incomes: Expense[];
   /** regalos sin comprar (ideas y decididos): se ven en Navidad pero no cuentan en el resumen */
   giftIdeas: Expense[];
   /** por mes 'YYYY-MM' */
