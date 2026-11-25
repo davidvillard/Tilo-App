@@ -119,3 +119,22 @@ test('Ingresos sueltos: suman a lo que entra (cobrados y previstos) y no cuentan
   expect(m.left).toBe(33.5);
   expect(prepareData(d)).toEqual(d);
 });
+
+test('Previsión del mes: resta el ahorro y, por categoría, lo mayor entre presupuesto y lo apuntado', () => {
+  const d = prepareData(data({
+    jobs: [job({ type: 'fixed', monthly_net: 2000, payments: 12 })],
+    plans: { '2026-11': { month: '2026-11-01', savings_goal: 300, budgets: { transporte: 100, regalos: 400, supermercado: 200 } } },
+    expenses: [
+      expense({ category: 'supermercado', status: 'real', amount: 250 }),  // se pasa: cuenta 250
+      expense({ category: 'transporte', status: 'real', amount: 40 }),     // dentro: cuenta 100
+      expense({ category: 'ocio', status: 'planned', planned: 30 }),       // sin presupuesto: cuenta 30
+      expense({ kind: 'income', category: 'reembolso', status: 'planned', planned: 60 }),
+    ],
+  }));
+  const m = monthSummary(d, '2026-11');
+  expect(m.income.total).toBe(2060);
+  expect(m.committed).toBe(250 + 100 + 400 + 30);
+  expect(m.reserved).toBe(60 + 400);
+  expect(m.forecast).toBe(2060 - 300 - 780);
+  expect(m.left).toBe(2060 - 290 - 30);
+});

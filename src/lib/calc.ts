@@ -139,8 +139,20 @@ export function monthSummary(data: Data, ym: string) {
   const spending = monthSpending(data, ym);
   const plan = monthPlan(data, ym);
   const goal = n(plan.savings_goal);
+  // Lo que sobra con lo apuntado (pagado + previsto): es lo que se ahorra de verdad.
   const left = income.total - spending.paid - spending.pending;
-  return { ym, income, spending, plan, goal, left };
+  // Presupuesto del mes: cada categoría cuenta lo mayor entre su presupuesto y lo apuntado. Así lo que
+  // aún no se ha apuntado (gasolina, regalos…) ya resta, y si te pasas del presupuesto resta lo real.
+  let committed = 0;
+  for (const id of new Set([...Object.keys(plan.budgets || {}), ...Object.keys(spending.byCategory)])) {
+    const v = spending.byCategory[id] ?? { paid: 0, pending: 0 };
+    committed += Math.max(n(plan.budgets?.[id]), v.paid + v.pending);
+  }
+  /** reservado en presupuestos y aún sin apuntar */
+  const reserved = committed - spending.paid - spending.pending;
+  /** lo que quedará libre: entra − ahorro − gastos (presupuestados o apuntados) */
+  const forecast = income.total - goal - committed;
+  return { ym, income, spending, plan, goal, left, committed, reserved, forecast };
 }
 export type MonthSummary = ReturnType<typeof monthSummary>;
 

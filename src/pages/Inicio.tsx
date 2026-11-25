@@ -18,15 +18,14 @@ import { cn } from '@/lib/utils';
 export function Inicio({ go }: { go: (r: Route) => void }) {
   const { data, ym, today, me, openSheet } = useApp();
   const M = monthSummary(data, ym);
-  const { income, spending, goal, left } = M;
+  const { income, spending, goal, reserved, forecast } = M;
   const plural = data.people.length > 1;
   const isPast = ym < today.slice(0, 7);
   const verb = isPast ? (plural ? 'os quedaron' : 'te quedaron') : plural ? 'os quedarán' : 'te quedarán';
   const started = data.jobs.length > 0 || data.expenses.length > 0;
 
-  const scale = Math.max(income.total, spending.paid + spending.pending, 1);
+  const scale = Math.max(income.total, spending.paid + spending.pending + reserved + goal, 1);
   const pct = (v: number) => `${Math.max(0, (v / scale) * 100)}%`;
-  const goalPos = income.total > 0 && goal > 0 ? Math.min(100, ((income.total - goal) / scale) * 100) : null;
   const upcoming = spending.list.filter((e) => e.status === 'planned').sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
 
   return (
@@ -40,35 +39,38 @@ export function Inicio({ go }: { go: (r: Route) => void }) {
           <Card className="space-y-4 md:p-6">
             <h2 className="text-3xl font-bold leading-tight tracking-tight md:text-[2.6rem]">
               En {monthName(ym)} {verb}{' '}
-              <span className={left < 0 ? 'text-over' : 'text-income'}>{money0(left)}</span>
+              <span className={forecast < 0 ? 'text-over' : 'text-income'}>{money0(forecast)}</span>
             </h2>
-            <p className="max-w-[62ch] text-muted-foreground">
-              Entran <b className="text-foreground">{money0(income.total)}</b>
-              {income.estimated > 0.5 && <> ({money0(income.estimated)} estimados por semanas sin horario)</>},{' '}
-              {plural ? 'lleváis' : 'llevas'} gastados <b className="text-foreground">{money0(spending.paid)}</b>
-              {spending.pending > 0 && <> y hay <b className="text-foreground">{money0(spending.pending)}</b> previstos</>}.
-              {goal > 0 && (left >= goal
-                ? <> El objetivo era ahorrar <b className="text-foreground">{money0(goal)}</b>: {plural ? 'vais' : 'vas'} <b className="text-foreground">{money0(left - goal)}</b> por encima.</>
-                : <> El objetivo era ahorrar <b className="text-foreground">{money0(goal)}</b>: {plural ? 'os faltan' : 'te faltan'} <b className="text-foreground">{money0(goal - left)}</b>.</>)}
+            <p className="max-w-[62ch] text-sm text-muted-foreground">
+              Libres después de apartar el ahorro y contar cada categoría por su presupuesto (o por lo apuntado, si es más).
             </p>
-            <div className="relative pt-1 pb-6">
+            <dl className="grid max-w-md grid-cols-[1fr_auto] gap-x-6 gap-y-1.5 text-sm">
+              <dt>Entran{income.estimated > 0.5 && <span className="text-muted-foreground"> ({money0(income.estimated)} estimados)</span>}</dt>
+              <dd className="text-right font-semibold text-income">+{money0(income.total)}</dd>
+              {goal > 0 && <><dt>Ahorro</dt><dd className="text-right font-semibold">−{money0(goal)}</dd></>}
+              <dt>Gastado</dt><dd className="text-right font-semibold">−{money0(spending.paid)}</dd>
+              {spending.pending > 0 && <><dt>Pagos previstos</dt><dd className="text-right font-semibold text-planned">−{money0(spending.pending)}</dd></>}
+              {reserved > 0.5 && <><dt>Presupuesto aún sin apuntar</dt><dd className="text-right font-semibold text-muted-foreground">−{money0(reserved)}</dd></>}
+              <dt className="border-t pt-1.5 font-semibold">{cap(verb)}</dt>
+              <dd className={cn('border-t pt-1.5 text-right font-bold', forecast < 0 ? 'text-over' : 'text-income')}>{money0(forecast)}</dd>
+            </dl>
+            <div className="relative pt-1">
               <div className="flex h-4 overflow-hidden rounded-md bg-muted" role="img" aria-label="Reparto de los ingresos del mes">
                 <i className="block h-full bg-primary" style={{ width: pct(Math.min(spending.paid, scale)) }} />
                 <i className="block h-full" style={{ width: pct(spending.pending), background: 'repeating-linear-gradient(135deg, var(--planned) 0 5px, #d18a1d 5px 10px)' }} />
-                <i className="block h-full bg-income-soft" style={{ width: pct(Math.max(0, left)) }} />
-                <i className="block h-full bg-over" style={{ width: pct(Math.max(0, -left)) }} />
+                <i className="block h-full bg-ink-3/40" style={{ width: pct(reserved) }} />
+                <i className="block h-full bg-income" style={{ width: pct(goal) }} />
+                <i className="block h-full bg-income-soft" style={{ width: pct(Math.max(0, forecast)) }} />
+                <i className="block h-full bg-over" style={{ width: pct(Math.max(0, -forecast)) }} />
               </div>
-              {goalPos != null && (
-                <div className="absolute top-0 bottom-3 w-0.5 bg-income" style={{ left: `${goalPos}%` }}>
-                  <span className={cn('absolute top-full pt-1 text-xs font-semibold whitespace-nowrap text-income', goalPos > 80 ? 'right-0' : goalPos < 20 ? 'left-0' : '-translate-x-1/2')}>ahorro {money0(goal)}</span>
-                </div>
-              )}
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
               <Legend color="var(--primary)">Gastado</Legend>
               <Legend color="var(--planned)">Previsto</Legend>
+              {reserved > 0.5 && <Legend color="color-mix(in srgb, var(--ink-3) 40%, transparent)">Presupuesto sin apuntar</Legend>}
+              {goal > 0 && <Legend color="var(--income)">Ahorro</Legend>}
               <Legend color="var(--income-soft)" ring>Libre</Legend>
-              {left < 0 && <Legend color="var(--over)">Por encima de los ingresos</Legend>}
+              {forecast < 0 && <Legend color="var(--over)">Falta</Legend>}
             </div>
           </Card>
 
