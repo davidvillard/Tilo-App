@@ -1,6 +1,7 @@
 // Navidad: sección de temporada (1 de noviembre – 6 de enero), a todo el ancho, con dos pestañas.
 // «Regalos que hago»: un regalo es un gasto con destinatario y pasa por tres fases:
-//   idea (no cuenta en el resumen) → decidido (cuenta como previsto) → comprado (cuenta como pagado).
+//   idea → decidido → comprado. Solo lo comprado cuenta en el resumen (como pagado); ideas y
+//   decididos no aparecen como previstos en Inicio.
 // Cada regalo tiene prioridad, que se ve en el color del paquete. «Listas de deseos»: components/wishes.
 import { useState } from 'react';
 import { Check, Pencil, Plus, Trash2, Undo2, Wallet } from 'lucide-react';
@@ -12,7 +13,7 @@ import { WishLists } from '@/components/wishes';
 import { LinkButton, PriorityLegend, XmasCard, XmasRow } from '@/components/xmas';
 import { PriorityPicker } from '@/components/priority';
 import { christmasSeason, expenseValue, toNumber } from '@/lib/calc';
-import { dayShort, money, monthName, parseLink, safeLink, uuid } from '@/lib/format';
+import { dayShort, money, parseLink, safeLink, uuid } from '@/lib/format';
 import { byPriority } from '@/lib/priority';
 import type { Expense, Priority } from '@/lib/types';
 import { useApp } from '@/lib/store';
@@ -31,8 +32,8 @@ export function Navidad() {
   const inSeason = (e: Expense) => Boolean(e.recipient) && e.date >= from && e.date <= to;
   const order = (a: Expense, b: Expense) => byPriority(a, b) || a.recipient!.localeCompare(b.recipient!, 'es') || a.date.localeCompare(b.date);
   const groups = {
-    decided: data.expenses.filter((e) => inSeason(e) && e.status === 'planned').sort(order),
-    ideas: data.giftIdeas.filter(inSeason).sort(order),
+    decided: data.giftIdeas.filter((e) => inSeason(e) && e.decided).sort(order),
+    ideas: data.giftIdeas.filter((e) => inSeason(e) && !e.decided).sort(order),
     bought: data.expenses.filter((e) => inSeason(e) && e.status === 'real').sort(order),
   };
   const counted = [...groups.decided, ...groups.bought];
@@ -48,7 +49,7 @@ export function Navidad() {
             <p className="mt-3 max-w-[52ch] text-base text-[#fffdf8]/85 md:text-lg">
               {tab === 'lists'
                 ? 'Apunta lo que te gustaría y mira qué quieren los demás. Desde su lista, «Regalar» lo pasa a tus regalos.'
-                : 'Apunta ideas de regalo y, cuando lo tengas claro, márcalas como decididas: entonces cuentan como gasto previsto del mes. Lo ve todo el hogar.'}
+                : 'Apunta ideas de regalo y márcalas como decididas cuando lo tengas claro. Solo cuentan como gasto cuando las marcas como compradas. Lo ve todo el hogar.'}
             </p>
           </div>
           {counted.length > 0 && (
@@ -100,7 +101,7 @@ function Gifts({ groups }: { groups: Groups }) {
       id: uuid(), date, category: 'regalos', note: idea.trim(), recipient: recipient.trim(), person_id: me?.id ?? null,
       status: 'planned', planned: toNumber(price), amount: null, recurring_id: null, link: parsedLink ?? null,
       decided, priority: prio,
-    }, decided ? `Regalo decidido: cuenta como previsto en ${monthName(date)}` : 'Idea apuntada: no cuenta en el resumen hasta que la decidas');
+    }, decided ? 'Regalo decidido: contará como gasto cuando lo marques como comprado' : 'Idea apuntada');
     if (ok) { setIdea(''); setRecipient(''); setPrice(''); setLink(''); setDecided(false); setPrio(2); }
   };
 
@@ -128,7 +129,7 @@ function Gifts({ groups }: { groups: Groups }) {
             <span className="min-w-0">
               <span className="block text-sm font-medium">Ya lo tengo decidido</span>
               <span className="block text-xs text-muted-foreground">
-                {decided ? 'Cuenta como gasto previsto del mes.' : 'Se guarda como idea: no cuenta en el resumen hasta que lo decidas.'}
+                {decided ? 'Lo tienes claro. Contará como gasto cuando lo marques como comprado.' : 'Se guarda como idea.'}
               </span>
             </span>
           </label>
@@ -138,13 +139,13 @@ function Gifts({ groups }: { groups: Groups }) {
         </form>
       </XmasCard>
 
-      <XmasCard title="Regalos" description="Las ideas no cuentan en el resumen. Cuando decides un regalo pasa a previsto, y al comprarlo, a pagado.">
+      <XmasCard title="Regalos" description="Ni las ideas ni los decididos cuentan en el resumen. Al marcar un regalo como comprado, pasa a gasto pagado.">
         <PriorityLegend />
         {empty ? (
           <p className="text-sm text-muted-foreground">Todavía no hay ningún regalo. Empieza con el formulario de arriba.</p>
         ) : (
           <>
-            <GiftGroup title="Decididos" hint="cuentan como previstos" list={groups.decided} />
+            <GiftGroup title="Decididos" hint="aún no cuentan" list={groups.decided} />
             <GiftGroup title="Ideas" hint="aún no cuentan" list={groups.ideas} />
             <GiftGroup title="Comprados" list={groups.bought} />
           </>

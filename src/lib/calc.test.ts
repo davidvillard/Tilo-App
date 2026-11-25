@@ -90,16 +90,16 @@ test('ahorro = ingresos - pagado - previsto, y plan heredado', () => {
   expect(plannedVsPaid(d, '2026-11')[0].diff).toBe(-20);
 });
 
-test('Regalos: las ideas no cuentan en el resumen; lo decidido cuenta como previsto y lo comprado como pagado', () => {
+test('Regalos: ni las ideas ni lo decidido cuentan en el resumen; solo lo comprado, como pagado', () => {
   const d = splitGiftIdeas(data({ expenses: [
     expense({ id: 'idea', recipient: 'Mamá', status: 'planned', planned: 50 }),
     expense({ id: 'decidido', recipient: 'Papá', status: 'planned', planned: 30, decided: true }),
     expense({ id: 'comprado', recipient: 'Lua', status: 'real', amount: 20 }),
     expense({ id: 'normal', status: 'planned', planned: 10 }),
   ] }));
-  expect(d.giftIdeas.map((e) => e.id)).toEqual(['idea']);
-  expect(d.expenses.map((e) => e.id)).toEqual(['decidido', 'comprado', 'normal']);
-  expect(monthSpending(d, '2026-11')).toMatchObject({ paid: 20, pending: 40 });
+  expect(d.giftIdeas.map((e) => e.id)).toEqual(['idea', 'decidido']);
+  expect(d.expenses.map((e) => e.id)).toEqual(['comprado', 'normal']);
+  expect(monthSpending(d, '2026-11')).toMatchObject({ paid: 20, pending: 10 });
   // Volver a separar no cambia nada (los datos llegan ya separados al recargar).
   expect(splitGiftIdeas(d)).toEqual(d);
 });

@@ -190,7 +190,7 @@ function makeActions(ctx: AppContext) {
       await backend.remove('recurring_expenses', { id: t.id });
     }, 'Gasto fijo quitado'),
     decideGift: (e: Expense, decided: boolean) =>
-      run(() => backend.upsert('expenses', { ...e, decided }), decided ? `Decidido: ${e.note || 'el regalo'} cuenta como previsto` : `${e.note || 'El regalo'} vuelve a ideas`),
+      run(() => backend.upsert('expenses', { ...e, decided }), decided ? `Decidido: ${e.note || 'el regalo'}` : `${e.note || 'El regalo'} vuelve a ideas`),
     giftPriority: (e: Expense, p: Priority) => run(() => backend.upsert('expenses', { ...e, priority: p })),
     wishPriority: (w: Wish, p: Priority) => run(() => backend.upsert('wishes', { ...w, priority: p })),
     saveTask: (t: Task, msg?: string) => run(() => backend.upsert('tasks', { ...t }), msg),

@@ -143,7 +143,7 @@ export interface Data {
   shifts: Shift[];
   /** gastos que cuentan: todo menos las ideas de regalo */
   expenses: Expense[];
-  /** regalos aún sin decidir: se ven en Navidad pero no cuentan en el resumen */
+  /** regalos sin comprar (ideas y decididos): se ven en Navidad pero no cuentan en el resumen */
   giftIdeas: Expense[];
   /** por mes 'YYYY-MM' */
   plans: Record<string, MonthPlan>;
