@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Brand } from '@/components/AppShell';
 import { Field } from '@/components/bits';
+import { LegalLink } from '@/components/legal';
 import { backend, isConfigured } from '@/lib/backend';
 import type { Session } from '@/lib/types';
 
@@ -25,6 +26,7 @@ function Layout({ children }: { children: ReactNode }) {
         </dl>
       </div>
       <div className="w-full max-w-sm">{children}</div>
+      <footer className="md:col-span-2"><LegalLink /></footer>
     </div>
   );
 }

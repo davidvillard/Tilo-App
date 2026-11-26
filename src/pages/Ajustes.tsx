@@ -11,6 +11,7 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Card, CardTitle, PageHeader } from '@/components/bits';
+import { CONTACT_EMAIL, LegalLink } from '@/components/legal';
 import { backend } from '@/lib/backend';
 import { useApp } from '@/lib/store';
 
@@ -51,6 +52,14 @@ export function Ajustes() {
             <dd className="font-medium">{household.name}{myMember?.is_admin ? ' · eres administrador' : ''}</dd>
           </dl>
           <Button variant="outline" className="mt-5" onClick={() => backend.signOut()}><LogOut /> Salir</Button>
+        </Card>
+
+        <Card>
+          <CardTitle>Legal y contacto</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Dudas, problemas o peticiones sobre tus datos: <a className="font-medium text-foreground underline underline-offset-4" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+          </p>
+          <LegalLink className="mt-3 font-medium text-foreground underline" label="Ver aviso legal, privacidad y cookies" />
         </Card>
 
         <Card className="border-over/40">
